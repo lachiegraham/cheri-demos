@@ -21,20 +21,8 @@ void __cheri_compartment("thread_two") entry()
 
     Debug::log("Attempting to access memory at hardcoded value 0x1027f0");
     char* ptr = reinterpret_cast<char *>(0x1027f0);
-    
-
-    // trying to directly set permissions. Unsuccessful
-    Capability forcedAccess = ptr;
-    PermissionSet ptrPermissions = forcedAccess.permissions();
-    static constexpr PermissionSet Permissions{
-	  Permission::Load, Permission::Store, Permission::LoadStoreCapability};
-    ptrPermissions = Permissions;
-    ptr = forcedAccess;
-
 
     Debug::log("Pointer created with data: {}", ptr);
-
-
 
     // The pointer on this thread has no permissions, so any attempted reads
     // or writes will error

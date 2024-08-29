@@ -20,14 +20,6 @@ void __cheri_compartment("thread_one") entry()
 {
     Debug::log("starting thread {}",thread_id_get());
 
-    // char *allocation;
-    // Debug::log("allocating memory at {}", &allocation);
-    // allocation = static_cast<char *>(malloc(256));
-
-    
-    // Debug::log("Writing secret message to allocation");
-    // allocation = "Bananas and apples";
-
     const char *allocation = "Bananas and apples";
     Debug::log("Writing secret message at {}", &allocation);
 
