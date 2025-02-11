@@ -1,0 +1,12 @@
+require("include.tt")
+
+val i:int = 0
+var j:string = "test"
+while(i <= 10) {
+    printf("%d\n", fib(i))
+    i = i + 1
+}
+
+#var sVar:String = "Some mutable text.\n"
+#val sVal:String = "Some immutable text.\n"
+#comments in Wyvern are //
