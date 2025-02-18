@@ -98,7 +98,7 @@ void scan_word(FILE *input, int c, int indicator) {
             lex_list[lex_index].token = ELSE;
         } else if (strcmp(value, "while") == 0) {
             lex_list[lex_index].token = WHILE;
-        } else if (strcmp(value, "define") == 0) {
+        } else if (strcmp(value, "def") == 0) {
             lex_list[lex_index].token = DEFINE;
         } else if (strcmp(value, "true") == 0) {
             lex_list[lex_index].token = TRUE;
@@ -131,6 +131,7 @@ void lexer(FILE *input) {
         c = getc(input);
         if (c == '\n') {
             LOG("%s\n", "'\\n' scanned");
+            //ASSIGN_LEX_LIST(";", SEMICOLON, line);
             line++;
         }
         if (c == EOF) {
