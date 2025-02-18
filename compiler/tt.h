@@ -114,6 +114,7 @@ struct env_node_s {
 struct expression_s {
     ast_t *ast;
     hlist_node_t node;
+    char* param_type;
 };
 
 #define ast_object \
@@ -127,12 +128,14 @@ struct ast_s {
 typedef struct _number_ast_s {
     ast_object;
     long value;
+    int should_return;
 } number_ast_t;
 
 #define new_number_ast(x, v, no) \
     x = malloc(sizeof(number_ast_t)); \
     x->line = no; \
     x->type = NUMBERAST; \
+    x->should_return = 0; \
     x->value = v
 
 typedef struct _variable_ast_s {
@@ -231,17 +234,20 @@ typedef struct _identifier_ast_s {
 typedef struct _call_ast_s {
     ast_object;
     char *name;
+    int should_return;
     expressions *args;
 } call_ast_t;
 
 #define new_call_ast(x, no) \
     x = (call_ast_t *)malloc(sizeof(call_ast_t)); \
     x->type = CALLAST; \
+    x->should_return = 0; \
     x->line = no
 
 typedef struct _function_ast_s {
     ast_object;
     char *name;
+    char *return_type;
     expressions *params;
     expressions *body;
     environment *env;
