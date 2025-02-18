@@ -140,6 +140,7 @@ ast_t *parse_identifier() {
         get_next_token(); // consume LPARAN
         call->args = gather_function_params();
         //get_next_token(); // consume RPARAN
+        call->should_return = 1;
         return (ast_t*)call;
     } else {
         // symbol reference;
@@ -169,6 +170,7 @@ ast_t *parse_number() {
     }
     number_ast_t *number;
     new_number_ast(number, sum, current->line);
+    number->should_return = 1;
     return (ast_t*)number;
 }
 
@@ -191,6 +193,19 @@ expressions* gather_function_params() {
     while (current && current->token != RPARAN) {
         ast_t *new = parse_expression();
         expression *e = (expression*)malloc(sizeof(expression));
+        
+        // handle parameters having declared types
+        current = curtok;
+        if (current->token == COLON) {
+            // handle function parameter type
+            get_next_token(); // skip :
+            
+            lex *type = curtok; // get type
+            e->param_type = strdup(type->value);
+            get_next_token(); // skip type
+        } else {
+            e->param_type = NULL;
+        }
         e->ast = new;
         INIT_HLIST_NODE(&e->node);
         if (hlist_empty((const expressions*)exps)) {
@@ -203,6 +218,7 @@ expressions* gather_function_params() {
         if (!current) {
             ERRORF(current_file, -1, "unexpected NIL");
         }
+        
         if (current->token != RPARAN && current->token != COMMA) {
             ERRORF(current_file, current->line, "COMMA or RIGHT PARAN is expected, got %s", current->value);
         }
@@ -243,7 +259,7 @@ ast_t *parse_function() {
     lex *current;
     get_next_token(); // skip define 
     function_ast_t *function;
-    new_function_ast(function, curtok->value, curtok->line);
+    new_function_ast(function, curtok->value,curtok->line);
     curtok->value = NULL;
     get_next_token(); // skip name
     current = curtok;
@@ -251,9 +267,18 @@ ast_t *parse_function() {
         ERRORF(current_file, curtok->line, "expected left parenthesis (, got %s", current->value);
     }
     get_next_token(); // skip (
-
     function->params = gather_function_params();
 
+    // Handle :type
+    current = curtok;
+    if(current->token != COLON) {
+        ERRORF(current_file, current->line, "expected colon :, got %s", current->value);
+    }
+    get_next_token(); //skip :
+    lex *type = curtok; // get type
+    function->return_type = strdup(type->value);
+
+    get_next_token();
     current = curtok;
     if(current->token != LBRACE) {
         ERRORF(current_file, current->line, "expected left brace {, got %s", current->value);
@@ -280,6 +305,26 @@ ast_t *parse_var() {
 
     lex *type = curtok;
     char *var_type = strdup(type->value);
+
+
+    /*
+    // this may be what needs to be added/changed to add in semicolons
+    get_next_token(); // skip type
+
+    if (curtok->token != ASSIGN) {
+        ERRORF(current_file, curtok->line, "Expected '=' for constant initialization, got %s", curtok->value);
+    }
+    get_next_token(); // skip =
+
+    ast_t *value = parse_expression(); // might actually be a different function
+        if (!value) {
+        ERRORF(current_file, curtok->line, "Error parsing value expression.");
+        free(name);
+        free(type_name);
+        return NULL; // Or handle the error as appropriate.
+    }
+    // and then we would need to change up the ast to have a value field
+    */
 
     decl_ast_t *var;
     new_decl_ast(var, name, var_type,curtok->line);
@@ -404,6 +449,11 @@ ast_t *parse_binary_ops(int precedence, ast_t *lhs) {
                 ERRORF(current_file, -1, "parse error 2");
                 return lhs;
             }
+        }
+        if (rhs->type == NUMBERAST) {
+            ((number_ast_t *)rhs)->should_return = 0;
+        } else if (rhs->type == CALLAST) {
+            ((call_ast_t *)rhs)->should_return = 0;
         }
 
         binary_ast_t *n;
