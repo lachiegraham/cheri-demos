@@ -66,6 +66,9 @@ enum __token {
     AND, // &&
     VAR, // var decl 35
     VAL, // const decl
+    NEWLINE, // \n
+    INDENT, // tab++ 38
+    DEDENT, // tab--
 };
 
 struct __lex {
@@ -119,6 +122,7 @@ struct expression_s {
 
 #define ast_object \
     ast_type type; \
+    int semicolon; \
     int line
 
 struct ast_s {
