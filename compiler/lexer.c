@@ -131,8 +131,13 @@ void lexer(FILE *input) {
         c = getc(input);
         if (c == '\n') {
             LOG("%s\n", "'\\n' scanned");
-            //ASSIGN_LEX_LIST(";", SEMICOLON, line);
             line++;
+            // handle indents
+            while (peek(input) == ' ') {
+                consume_char(input);
+                LOG("%s\n", "INDENT scanned");
+                ASSIGN_LEX_LIST("indent", INDENT, line);
+            }
         }
         if (c == EOF) {
             LOG("%s\n", "'EOF' scanned");
@@ -263,6 +268,10 @@ void lexer(FILE *input) {
             continue;
         }
         if (c == '/') {
+            if (peek(input) == '/') {
+                pass_word(input);
+                continue;
+            }
             LOG("%s\n", "'/' scanned");
             ASSIGN_LEX_LIST("/", DIV, line);
             continue;
