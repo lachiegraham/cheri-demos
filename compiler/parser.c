@@ -9,6 +9,7 @@
 
 static int parse_index = 0;
 static lex *curtok;
+static int indent_level = 0;
 
 ast_t *parse_expression();
 ast_t *parse_primary();
@@ -46,13 +47,25 @@ static void unget_token() {
         curtok = &lex_list[--parse_index];
 }
 
+static int get_indent_level() {
+    int indent = 0;
+    while (curtok->token == INDENT) {
+        indent++;
+        get_next_token();
+    }
+    return indent;
+}
+
 expressions *gather_expression() {
     lex *current = curtok;
     expressions *exps = (expressions*)malloc(sizeof(expressions));
     init_expressions(exps);
     expression *old;
-    while (current && current->token != RBRACE) {
+    while (current && current->token != RBRACE) { // based off indent level
         ast_t *new = parse_expression();
+        if (new->type != WHILEAST && new->type != IFAST) {
+            new->semicolon = 1;
+        }
         expression *e = (expression*)malloc(sizeof(expression));
         e->ast = new;
         INIT_HLIST_NODE(&e->node);
@@ -76,12 +89,11 @@ ast_t *parse_while() {
     }
     ast_t *cond = parse_primary();
     new_while_ast(res, cond, current->line);
-
     current = curtok;
-    if(current->token != LBRACE) {
+    if(current->token != LBRACE) { // INDENT
         ERRORF(current_file, current->line, "expected LEFT BRACE {, got %s", current->value);
     }
-    get_next_token(); // skip {
+    get_next_token(); // skip { // get indent level
     res->body = gather_expression();
     
     current = curtok;
@@ -140,7 +152,20 @@ ast_t *parse_identifier() {
         get_next_token(); // consume LPARAN
         call->args = gather_function_params();
         //get_next_token(); // consume RPARAN
+
         call->should_return = 1;
+        // unset the should_return flag for any nested calls
+        ast_t *ast;
+        expression *nodes;
+        hlist_node_t *iter;
+        hlist_for_each(call->args, iter) {
+        nodes = hlist_entry(iter, expression, node);
+            ast = nodes->ast;
+            if (ast->type == CALLAST) {
+                ((call_ast_t *)ast)->should_return = 0;
+            }
+        }
+        // return
         return (ast_t*)call;
     } else {
         // symbol reference;
@@ -358,6 +383,10 @@ ast_t *parse_primary() {
     }
     ast_t *res;
     switch(curtok->token) {
+        case INDENT:
+            LOG("found indent, line %d\n", curtok->line);
+            get_indent_level();
+            return parse_primary();
         case DEFINE:
             LOG("%s\n", "parsing define...");
             res = parse_function();
@@ -418,7 +447,7 @@ ast_t *parse_primary() {
             res = parse_character();
             return res;
         default:
-            ERRORF(current_file, curtok->line, "unexpected token (%d)", curtok->token);
+            ERRORF(current_file, curtok->line, "parse_primary: unexpected token (%d)", curtok->token);
     }
     return NULL;
 }
@@ -562,14 +591,27 @@ void print_ast(ast_t *t, int depth) {
             printf("args ");
             print_expression(((call_ast_t*)t)->args, depth+1);
             break;
+        case CONSTAST:
+            pretty_format(depth);
+            printf("const ");
+            printf("%s %s ", ((const_ast_t*)t)->valuetype, ((const_ast_t*)t)->value);
+            break;
+        case DECLAST:
+            pretty_format(depth);
+            printf("var ");
+            printf("%s %s ", ((const_ast_t*)t)->valuetype, ((const_ast_t*)t)->value);
+            break;
         default:
             ERRORF(current_file, t->line, "no such ast type (%d)", t->type);
     }
 }
 
 expressions *parser() {
+    // init curtok
     parse_index = 0;
     get_next_token();
+
+    // parse
     expressions *ast = gather_expression();
     return ast;
 
