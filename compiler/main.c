@@ -26,6 +26,10 @@ void file_mode(const char *filename) {
     expressions *exps = parser();
     //environment *env = init_env();
     fp = fopen("test.txt", "w");
+    if (!fp) {
+        ERRORF("main.c",-1, "no such file %s", "test.txt");
+    }
+    fprintf(fp, "#include <stdio.h>\n\n");
     translate_primary(exps, fp);
     fclose(fp);
     // ast_t *evald = eval_expressions(exps, &env);
