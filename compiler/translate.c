@@ -2,20 +2,8 @@
 int inside_function_def_flag = 0;
 void translate_ast(ast_t*, FILE*);
 
-void translate_statement(ast_t *ast, FILE *fp) {
-    translate_ast(ast, fp);
 
-    // Add semicolon for most statements, but NOT after blocks or control flow
-    switch (ast->type) {
-        case IFAST:         // No semicolon
-        case WHILEAST:       // No semicolon
-        case FUNCTIONAST:    // No semicolon
-            break;
-        default:
-            fprintf(fp, ";\n"); // Add semicolon and newline
-    }
-}
-
+// function that adds quotes around strings, but not if the string matches a binop
 void print_stringast(ast_t *ast, FILE *fp) {
     char *string = ((string_ast_t*)ast)->value;
     if (strcmp(string, "<") == 0 || strcmp(string, "<=") == 0 || 
@@ -34,7 +22,7 @@ void print_stringast(ast_t *ast, FILE *fp) {
 void translate_ast(ast_t *ast, FILE *fp) {
     switch (ast->type) {
         case BOOLEANAST:
-            fprintf(fp, "%s ", ((boolean_ast_t*)ast)->value ? "TRUE" : "FALSE");
+            fprintf(fp, "%s ", ((boolean_ast_t*)ast)->value ? "true" : "false");
             if (ast->semicolon == 1) {
                 fprintf(fp,";\n");
             }
@@ -104,9 +92,9 @@ void translate_ast(ast_t *ast, FILE *fp) {
             fprintf(fp, "\n");
             break;
         case WHILEAST:
-            fprintf(fp, "while ");
+            fprintf(fp, "while (");
             translate_ast(((while_ast_t*)ast)->condition, fp);
-            fprintf(fp, "{ \n");
+            fprintf(fp, "){ \n");
             translate_primary(((while_ast_t*)ast)->body, fp);
             fprintf(fp, "\n}\n");
             break;
