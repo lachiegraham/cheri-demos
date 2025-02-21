@@ -175,29 +175,75 @@ ast_t *parse_identifier() {
         call->name = current->value;
         current->value = NULL;
         get_next_token(); // consume LPARAN
-        call->args = gather_function_params();
-        //get_next_token(); // consume RPARAN
+        call->args = gather_function_params(); // consumes RPARAN
 
         call->should_return = 1;
         // unset the should_return flag for any nested calls
         ast_t *ast;
         expression *nodes;
         hlist_node_t *iter;
-        hlist_for_each(call->args, iter) {
-        nodes = hlist_entry(iter, expression, node);
+        hlist_for_each(call->args, iter) { // loop through nested calls
+        nodes = hlist_entry(iter, expression, node); 
             ast = nodes->ast;
             if (ast->type == CALLAST) {
                 ((call_ast_t *)ast)->should_return = 0;
+            } else if (ast->type == NUMBERAST) {
+                ((number_ast_t *)ast)->should_return = 0;
             }
         }
-        // return
+        // if we have a print statement, unset return flag
+        // TODO this should be for all void type function calls but we will need a lookup table for that
+        if (strcmp(call->name,"print") == 0 || strcmp(call->name,"println") == 0 || strcmp(call->name,"printInt") == 0) {
+            call->should_return = 0;
+        }
         return (ast_t*)call;
     } else {
-        // symbol reference;
-        variable_ast_t *variable;
-        new_variable_ast(variable, current->value, current->line);
-        current->value = NULL;
-        return (ast_t*)variable;
+        if (strcmp(current->value, "import") == 0 || strcmp(current->value, "require") == 0) {
+            get_next_token(); // skip import/require keyword
+            
+            if (!next) {
+                ERRORF(current_file, current->line, "expected argument for IMPORT");
+            }
+            if (next->token != IDENTIFIER) {
+                ERRORF(current_file, current->line, "expected argument for IMPORT, got %s", next->value);
+            }
+            // Handle next word, then check if theres a dot. If there is, handle that whole part as one string.
+            include_ast_t *import;
+            new_include_ast(import, current->line);
+            import->is_import_statement = strcmp(current->value, "import") == 0; // set flag
+            import->value = next->value;
+
+            // CHECK FOR dot
+            char *arg = next->value;
+            if (curtok->token != DOT) {
+                return (ast_t*)import;
+            }
+            get_next_token(); // skip dot
+            if (!curtok) {
+                ERRORF(current_file, current->line, "bad formatting for IMPORT statement");
+            }
+            if (curtok->token != IDENTIFIER) {
+                ERRORF(current_file, current->line, "bad argument for IMPORT statment, got %s", curtok->value);
+            }
+            // concatenate whole string together and return
+            strcat(arg, ".");
+            strcat(arg, curtok->value);
+            import->value = arg;
+            get_next_token();
+            current->value = NULL;
+            return (ast_t *)import;
+
+        } else {
+            if (next && next->token == DOT) {
+                get_next_token(); // skip dot
+                return parse_identifier();
+            }
+            // symbol reference;
+            variable_ast_t *variable;
+            new_variable_ast(variable, current->value, current->line);
+            current->value = NULL;
+            return (ast_t*)variable;
+        }
     }
 }
 
@@ -250,8 +296,11 @@ expressions* gather_function_params() {
             // handle function parameter type
             get_next_token(); // skip :
             
-            lex *type = curtok; // get type
-            e->param_type = strdup(type->value);
+            char* type = curtok->value;
+            for (int i = 0; i < strlen(type); i++) {
+                type[i] = tolower(type[i]);
+            }
+            e->param_type = type;
             get_next_token(); // skip type
         } else {
             e->param_type = NULL;
@@ -325,8 +374,11 @@ ast_t *parse_function() {
         ERRORF(current_file, current->line, "expected colon :, got %s", current->value);
     }
     get_next_token(); //skip :
-    lex *type = curtok; // get type
-    function->return_type = strdup(type->value);
+    char *ret_type = curtok->value;
+    for (int i = 0; i < strlen(ret_type); i++) {
+        ret_type[i] = tolower(ret_type[i]);
+    }
+    function->return_type = ret_type;
 
     get_next_token();
     current = curtok;
@@ -350,8 +402,7 @@ ast_t *parse_function() {
 ast_t *parse_var() {
     get_next_token(); // skip var
 
-    lex *current = curtok;
-    char *name = strdup(current->value); // copy identifier name
+    char *name = curtok->value; // copy identifier name
     get_next_token(); // skip id
 
     if (curtok->token != COLON) {
@@ -359,8 +410,10 @@ ast_t *parse_var() {
     }
     get_next_token(); // skip :
 
-    lex *type = curtok;
-    char *var_type = strdup(type->value);
+    char *var_type = curtok->value;
+    for (int i = 0; i < strlen(var_type); i++) {
+        var_type[i] = tolower(var_type[i]);
+    }
 
     decl_ast_t *var;
     new_decl_ast(var, name, var_type,curtok->line);
@@ -371,8 +424,7 @@ ast_t *parse_var() {
 ast_t *parse_val() {
     get_next_token(); // skip val
 
-    lex *current = curtok;
-    char *name = strdup(current->value); // copy identifier name
+    char *name = curtok->value; 
     get_next_token(); // skip id
 
     if (curtok->token != COLON) {
@@ -380,8 +432,10 @@ ast_t *parse_val() {
     }
     get_next_token(); // skip :
 
-    lex *type = curtok;
-    char *val_type = strdup(type->value);
+    char *val_type = curtok->value;
+    for (int i = 0; i < strlen(val_type); i++) {
+        val_type[i] = tolower(val_type[i]);
+    }
 
     const_ast_t *constant;
     new_const_ast(constant, name, val_type,curtok->line);
@@ -457,6 +511,10 @@ ast_t *parse_primary() {
             get_next_token(); // skip single quote
             res = parse_character();
             return res;
+        case DOT:
+            get_next_token(); // just skip
+            printf("after dot: %s\n", curtok->value);
+            return parse_identifier();
         default:
             ERRORF(current_file, curtok->line, "parse_primary: unexpected token (%d)", curtok->token);
     }
