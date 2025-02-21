@@ -21,6 +21,7 @@ void consume_char(FILE* fp) {
     getc(fp);
 }
 
+// function that skips comments
 void pass_word(FILE *fp) {
     char c;
     while((c = getc(fp)) != EOF && c != '\n');
@@ -63,17 +64,18 @@ void scan_word(FILE *input, int c, int indicator) {
     } else {
         char last = ' ';
         if (indicator == 1) {
+            // handle strings
             while((c = getc(input)) != EOF && ((c != '"') || (c == '"' && last == '\\'))) {
-                if (last == '\\') {
-                    last = c;
-                    lex_list[lex_index].value[i++] = get_backslash_char(c);
-                    continue;
-                }
+                // if (last == '\\') {
+                //     last = c;
+                //     lex_list[lex_index].value[i++] = get_backslash_char(c);
+                //     continue;
+                // }
                 last = c;
                 if (c == '\n')
                     line++;
-                if (c == '\\')
-                    continue;
+                // if (c == '\\')
+                //     continue;
                 lex_list[lex_index].value[i++] = c;
             }
             if (c == EOF) {
@@ -303,6 +305,10 @@ void lexer(FILE *input) {
             continue;
         }
         if (isspace(c)) {
+            continue;
+        }
+        if (c == '.') {
+            ASSIGN_LEX_LIST(".", DOT, line);
             continue;
         }
         ERRORF(current_file, -1, "unknown character %c", c);
