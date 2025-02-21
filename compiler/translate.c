@@ -61,12 +61,18 @@ void translate_ast(ast_t *ast, FILE *fp) {
             }
             break;
         case DECLAST:
+            if (strcmp(((decl_ast_t*)ast)->valuetype, "string") == 0) {
+                ((decl_ast_t*)ast)->valuetype = "char *";
+            }
             fprintf(fp, "%s %s ", ((decl_ast_t*)ast)->valuetype, ((decl_ast_t*)ast)->value);
             if (ast->semicolon == 1) {
                 fprintf(fp,";\n");
             }
             break;
         case CONSTAST:
+            if (strcmp(((const_ast_t*)ast)->valuetype, "string") == 0) {
+                ((const_ast_t*)ast)->valuetype = "char *";
+            }
             fprintf(fp, "const %s %s ", ((const_ast_t*)ast)->valuetype, ((const_ast_t*)ast)->value);
             if (ast->semicolon == 1) {
                 fprintf(fp,";\n");
@@ -113,13 +119,74 @@ void translate_ast(ast_t *ast, FILE *fp) {
             if (((call_ast_t*)ast)->should_return == 1 && inside_function_def_flag == 1) {
                 fprintf(fp, "return ");
             }
-            fprintf(fp, "%s", ((call_ast_t*)ast)->name);
+            // handle the transation of all the inbuilt print functions
+            if (strcmp(((call_ast_t*)ast)->name, "print") == 0) {
+                fprintf(fp, "printf");
+            } else if (strcmp(((call_ast_t*)ast)->name, "println") == 0) {
+                // The amount of stuff that has to be done to print a '\n' is crazy
+                fprintf(fp, "printf");
+                if (hlist_empty(((call_ast_t*)ast)->args)) { // add string_ast holding '\n' to args
+                    expression *e = (expression*)malloc(sizeof(expression));
+                    string_ast_t *string_ast;
+                    new_string_ast(string_ast, "\\n", -1);
+                    e->ast = (ast_t*)string_ast;
+                    INIT_HLIST_NODE(&e->node);
+                    hlist_add_head(&e->node,((call_ast_t*)ast)->args);
+                } else {
+                    ERRORF(current_file, ast->line, "println should not have arguments");
+                }
+            } else if (strcmp(((call_ast_t*)ast)->name, "printInt") == 0) {
+                fprintf(fp, "printf");
+                // Add '%d' as an arg before the existing args
+                if (hlist_empty(((call_ast_t*)ast)->args)) {
+                    ERRORF(current_file, ast->line, "printInt needs arguments");
+                } else {
+                    expression *e = (expression*)malloc(sizeof(expression));
+                    string_ast_t *string_ast;
+                    new_string_ast(string_ast, "\%d", -1);
+                    e->ast = (ast_t*)string_ast;
+                    INIT_HLIST_NODE(&e->node);
+                    hlist_add_head(&e->node,((call_ast_t*)ast)->args);
+                    
+                }
+                
+            } else {
+                // DEFAULT, UNMODIFIED FUNCTION NAME
+                fprintf(fp, "%s", ((call_ast_t*)ast)->name);
+            }
             fprintf(fp, "(");
-            translate_primary(((call_ast_t*)ast)->args, fp);
+            //translate_primary(((call_ast_t*)ast)->args, fp);
+            // would love to just do ^, but we need to add commas in between each arg
+            hlist_node_t *iter;
+            expression *e;
+            hlist_for_each(((call_ast_t*)ast)->args, iter) {
+                e = hlist_entry(iter, expression, node);
+                if (!e->ast) {
+                    continue;
+                }
+                translate_ast(e->ast, fp);
+                // if we have a next, add a comma
+                if (iter->next) {
+                    fprintf(fp,", ");
+                }
+            }
+            // end of args
             fprintf(fp, ")");
             if (ast->semicolon == 1) {
                 fprintf(fp,";\n");
             }
+            break;
+        case INCLUDEAST:
+            if (((include_ast_t*)ast)->is_import_statement == 0) {
+                // REQUIRE
+                // hardcode stdout
+                if (strcmp(((include_ast_t*)ast)->value,"stdout") == 0) {
+                    fprintf(fp, "#include <stdio.h>\n");
+                    break;
+                }
+            }
+            // IMPORT and also any REQUIREs that aren't hardcoded
+            fprintf(fp, "#include \"%s\"\n",((include_ast_t*)ast)->value);
             break;
         default:
             ERRORF(current_file, ast->line, "no such ast type (%d)", ast->type);
