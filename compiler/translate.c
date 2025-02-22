@@ -1,5 +1,6 @@
 #include "tt.h"
 int inside_function_def_flag = 0;
+FILE *fp2;
 void translate_ast(ast_t*, FILE*);
 
 
@@ -105,15 +106,21 @@ void translate_ast(ast_t *ast, FILE *fp) {
             fprintf(fp, "\n}\n");
             break;
         case FUNCTIONAST: // int foo(int bar) {}
-            fprintf(fp, "%s ", ((function_ast_t*)ast)->return_type);
-            fprintf(fp, "%s", ((function_ast_t*)ast)->name);
-            fprintf(fp, "(");
-            translate_primary(((function_ast_t*)ast)->params, fp);
-            fprintf(fp, ") {\n");
+            // we write function defs to new file, then concatenate later
+            fp2 = fopen("test2.txt", "a");
+            if (!fp2) {
+                ERRORF("translate.c",-1, "no such file %s", "test2.txt");
+            }
+            fprintf(fp2, "%s ", ((function_ast_t*)ast)->return_type);
+            fprintf(fp2, "%s", ((function_ast_t*)ast)->name);
+            fprintf(fp2, "(");
+            translate_primary(((function_ast_t*)ast)->params, fp2);
+            fprintf(fp2, ") {\n");
             inside_function_def_flag = 1;
-            translate_primary(((function_ast_t*)ast)->body, fp);
-            fprintf(fp, "\n}\n");
+            translate_primary(((function_ast_t*)ast)->body, fp2);
+            fprintf(fp2, "\n}\n");
             inside_function_def_flag = 0;
+            fclose(fp2);
             break;
         case CALLAST:
             if (((call_ast_t*)ast)->should_return == 1 && inside_function_def_flag == 1) {
@@ -177,16 +184,21 @@ void translate_ast(ast_t *ast, FILE *fp) {
             }
             break;
         case INCLUDEAST:
+            fp2 = fopen("test2.txt", "a");
+            if (!fp2) {
+                ERRORF("translate.c",-1, "no such file %s", "test2.txt");
+            }
             if (((include_ast_t*)ast)->is_import_statement == 0) {
-                // REQUIRE
-                // hardcode stdout
+                // REQUIRE - hardcode stdout
                 if (strcmp(((include_ast_t*)ast)->value,"stdout") == 0) {
-                    fprintf(fp, "#include <stdio.h>\n");
+                    fprintf(fp2, "#include <stdio.h>\n");
+                    fclose(fp2);
                     break;
                 }
             }
             // IMPORT and also any REQUIREs that aren't hardcoded
-            fprintf(fp, "#include \"%s\"\n",((include_ast_t*)ast)->value);
+            fprintf(fp2, "#include \"%s\"\n",((include_ast_t*)ast)->value);
+            fclose(fp2);
             break;
         default:
             ERRORF(current_file, ast->line, "no such ast type (%d)", ast->type);
@@ -205,6 +217,9 @@ void translate_primary(expressions *exp, FILE *fp) {
         if (!e->ast) {
             continue;
         }
+        // if (e->ast->type == FUNCTIONAST) {
+
+        // }
         // handle function params types printing
         if (e->param_type) { 
             fprintf(fp,"%s ", e->param_type);
