@@ -25,13 +25,35 @@ void file_mode(const char *filename) {
     fclose(fp);
     expressions *exps = parser();
     //environment *env = init_env();
+
+    // Opening in write mode clears the file. We can close immediately.
+    FILE *fp2 = fopen("test2.txt", "w");
+    if (!fp) {
+        ERRORF(current_file,-1, "no such file test2.txt");
+    }
+    fclose(fp2);
+
     fp = fopen("test.txt", "w");
     if (!fp) {
         ERRORF("main.c",-1, "no such file %s", "test.txt");
     }
-    fprintf(fp, "#include <stdio.h>\n\n");
+    fprintf(fp,"int main() {\n");
     translate_primary(exps, fp);
+    fprintf(fp,"}");
     fclose(fp);
+    
+
+    // concatenate main method after function decls
+    fp2 = fopen("test2.txt", "a");
+    fp = fopen("test.txt", "r");
+    char *buf = (char *)malloc(sizeof(char));
+    while (!feof(fp)) {
+        fgets(buf, sizeof(buf), fp);
+        fprintf(fp2, "%s", buf);
+    }
+    fclose(fp);
+    fclose(fp2);
+
     // ast_t *evald = eval_expressions(exps, &env);
     //translate_primary(evald, &env);
     //print_env(env);
