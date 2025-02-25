@@ -9,7 +9,6 @@
 
 static int parse_index = 0;
 static lex *curtok;
-static int indent_level = 0;
 
 ast_t *parse_expression();
 ast_t *parse_primary();
@@ -41,20 +40,16 @@ static void get_next_token() {
     }
     curtok = &lex_list[parse_index++];
 }
+void dump_tokens() {
+    while (curtok && curtok->token != EOF) {
+        printf("%s\n",curtok->value);
+        get_next_token();
+    }
+}
 
 static void unget_token() {
     if (parse_index > 0)
         curtok = &lex_list[--parse_index];
-}
-
-static int get_indent_level() {
-    int indent = 0;
-    if (!curtok) return 0;
-    while (curtok->token == INDENT) {
-        indent++;
-        get_next_token();
-    }
-    return indent;
 }
 
 expressions *gather_expression() {
@@ -62,10 +57,8 @@ expressions *gather_expression() {
     expressions *exps = (expressions*)malloc(sizeof(expressions));
     init_expressions(exps);
     expression *old;
-    int previous_indent_level = indent_level;
-    while (current && indent_level >= previous_indent_level) { // MAY SUPPORT == IM NOT SURE
+    while (current && current->token != DEDENT) {
         ast_t *new = parse_expression();
-        
         if (new->type != WHILEAST && new->type != IFAST) {
             new->semicolon = 1;
         }
@@ -78,10 +71,6 @@ expressions *gather_expression() {
             hlist_add_after(&old->node, &e->node);
         }
         old = e;
-        // update indentation level
-        previous_indent_level = indent_level;
-        indent_level = get_indent_level();
-
         current = curtok;
     }
     return exps;
@@ -103,12 +92,14 @@ ast_t *parse_while() {
     if (current->token != INDENT) {
         ERRORF(current_file, current->line, "expected INDENT after WHILE, got %s", current->value);
     }
-    // consume and count indentations
-    indent_level = get_indent_level();
-    //get_next_token(); // skip {
+    get_next_token(); // consume indent
     res->body = gather_expression(); // parse while body
     
     current = curtok;
+    if(current->token != DEDENT) {
+        ERRORF(current_file, current->line, "expected DEDENT [line95], got %s", current->value);
+    }
+    get_next_token(); // skip DEDENT
     // if(current->token != RBRACE) {
     //     ERRORF(current_file, current->line, "expected RIGHT BRACE }, got %s", current->value);
     // }
@@ -122,8 +113,7 @@ ast_t *parse_if() {
     lex *current = curtok;
     if (current->token != LPARAN) {
         ERRORF(current_file, current->line, "expected LEFT PARENTHSIS (, got %s", current->value);
-    }// printf("currently looking at %s, local indent level %d, global indent level %d\n", current->value, previous_indent_level, indent_level);
-
+    }
 
     ast_t *cond = parse_primary();
     new_if_ast(res, cond, current->line);
@@ -136,10 +126,13 @@ ast_t *parse_if() {
     if (current->token != INDENT) {
         ERRORF(current_file, current->line, "expected INDENT after IF, got %s", current->value);
     }
-    // consume and count indentations
-    indent_level = get_indent_level();
 
+    get_next_token();   // consume indent
     res->then = gather_expression();
+    if (curtok->token != DEDENT) {
+        ERRORF(current_file, current->line, "expected DEDENT after IF [line 128], got %s", current->value);
+    }
+    get_next_token();   // consume indent
     // get_next_token(); // skip }
 
     current = curtok;
@@ -153,10 +146,14 @@ ast_t *parse_if() {
         if (current->token != INDENT) {
             ERRORF(current_file, current->line, "expected INDENT after ELSE, got %s", current->value);
         }
-        // consume and count indentations
-        indent_level = get_indent_level();
+        // consume indent
+        get_next_token();
 
         res->els = gather_expression();
+        if (curtok->token != DEDENT) {
+        ERRORF(current_file, current->line, "expected DEDENT after IF [line 149], got %s", current->value);
+    }
+        get_next_token(); // skip dedent
         // get_next_token(); // skip }
     } else {
         res->els = NULL;
@@ -387,14 +384,18 @@ ast_t *parse_function() {
     // }
     // get_next_token(); // skip {
     if (current->token != INDENT) {
-        ERRORF(current_file, current->line, "expected INDENT after ELSE, got %s", current->value);
+        ERRORF(current_file, current->line, "expected INDENT after FUNCTION DEF, got %s", current->value);
     }
-    // consume and count indentations
-    indent_level = get_indent_level();
+    // consume indent
+    get_next_token();
 
     function->body = gather_expression();
     function->env = NULL;
     // get_next_token(); // skip }
+    if (curtok->token != DEDENT) {
+        ERRORF(current_file, current->line, "expected DEDENT after function def [line 391], got %s", current->value);
+    }
+    get_next_token(); // skip dedent
     return (ast_t*)function;
 }
 
@@ -450,7 +451,11 @@ ast_t *parse_primary() {
     switch(curtok->token) {
         case INDENT:
             printf("found indent, line %d\n", curtok->line);
-            indent_level = get_indent_level();
+            get_next_token();
+            //indent_level = get_indent_level();
+            return parse_primary();
+        case DEDENT:
+            printf("found dedent, line %d\n", curtok->line);
             return parse_primary();
         case DEFINE:
             LOG("%s\n", "parsing define...");
@@ -512,9 +517,9 @@ ast_t *parse_primary() {
             res = parse_character();
             return res;
         case DOT:
-            get_next_token(); // just skip
-            printf("after dot: %s\n", curtok->value);
-            return parse_identifier();
+            // get_next_token(); // just skip
+            // printf("after dot: %s\n", curtok->value);
+            // return parse_identifier();
         default:
             ERRORF(current_file, curtok->line, "parse_primary: unexpected token (%d)", curtok->token);
     }
