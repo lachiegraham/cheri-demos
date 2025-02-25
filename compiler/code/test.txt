@@ -1,4 +1,0 @@
-require ( "include.tt" ) (const int i = 0 )(string j = "test" )while (i <= 10 ){ 
-printf ( "%d
-" fib ( i ) ) (i = (i + 1 ))
-}
