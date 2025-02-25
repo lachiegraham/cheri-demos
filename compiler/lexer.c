@@ -10,6 +10,8 @@
 lex lex_list[MAX_STRING];
 int lex_index = 0;
 int line = 1;
+int indent_stack[10];
+int indent_stack_index = -1;
 
 int peek(FILE* fp) {
     int c = getc(fp);
@@ -135,10 +137,31 @@ void lexer(FILE *input) {
             LOG("%s\n", "'\\n' scanned");
             line++;
             // handle indents
+            int local_indent_level = 0;
             while (peek(input) == ' ') {
                 consume_char(input);
+                local_indent_level++;
+            }
+            if (peek(input) == '\n' || peek(input) == EOF) {
+                // line was empty
+                continue;
+            }
+            
+            // do some initialising
+            int current_indent = (indent_stack_index >= 0) ? indent_stack[indent_stack_index] : 0;
+           
+            if (local_indent_level > current_indent) {
+                indent_stack[++indent_stack_index] = local_indent_level;
                 LOG("%s\n", "INDENT scanned");
                 ASSIGN_LEX_LIST("indent", INDENT, line);
+            } else if (local_indent_level < current_indent) {
+                // We may need multiple dedents at once, handle that case
+                while (local_indent_level < current_indent) {
+                    indent_stack_index--; // pop
+                    LOG("%s\n", "DEDENT scanned");
+                    ASSIGN_LEX_LIST("dedent", DEDENT, line);
+                    current_indent = (indent_stack_index >= 0) ? indent_stack[indent_stack_index] : 0;
+                }
             }
         }
         if (c == EOF) {
