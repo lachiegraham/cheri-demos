@@ -69,6 +69,7 @@ enum __token {
     NEWLINE, // \n
     INDENT, // tab++ 38
     DEDENT, // tab--
+    DOT, // .
 };
 
 struct __lex {
@@ -93,6 +94,7 @@ enum __ast_type {
     BOOLEANAST,
     CONSTAST,
     DECLAST,
+    INCLUDEAST, // handles imports
 };
 
 typedef struct environment_s environment;
@@ -248,6 +250,18 @@ typedef struct _call_ast_s {
     x->should_return = 0; \
     x->line = no
 
+typedef struct _include_ast_s {
+    ast_object;
+    int is_import_statement;
+    char *value;
+} include_ast_t;
+
+#define new_include_ast(x, no) \
+    x = (include_ast_t *)malloc(sizeof(include_ast_t)); \
+    x->type = INCLUDEAST; \
+    x->is_import_statement = 0; \
+    x->line = no
+
 typedef struct _function_ast_s {
     ast_object;
     char *name;
@@ -370,7 +384,7 @@ ast_t *eval_and(binary_ast_t*, environment *);
 
 // for internal_func
 ast_t *internal_printf(ast_t*, environment*);
-ast_t *internal_require(ast_t*, environment**);
+ast_t *internal_import(ast_t*, environment**);
 
 // TRANSLATE
 // void translate_ast(ast_t *, FILE*);
